@@ -1,0 +1,133 @@
+import numpy as np
+import pandas as pd
+
+df_heart = pd.read_csv('C:\\Users\\planz\\Desktop\\大数据云计算\\机器学习\\heart.csv')
+print(df_heart.head())
+'''
+age: 年龄
+sex: 性别
+cp: 胸疼类型
+trestbps:休息时⾎压
+chol:胆固醇
+fbs:⾎糖(1=超标,0=未超标)
+restecg：⼼电图
+thalach:最⼤⼼率
+exang:运动后⼼绞痛
+oldspeak：运动后ST段压低
+slope:运动⾼峰期ST段的斜率
+ca:主动脉荧光造影染⾊数
+thal:缺陷种类
+target:0和1表示
+'''
+import matplotlib.pyplot as plt
+plt.rcParams['font.sans-serif']=['SimHei']
+plt.rcParams['axes.unicode_minus']=False
+# 以年龄+最⼤⼼率作为输⼊
+plt.scatter(x=df_heart.age[df_heart.target==1],
+ y=df_heart.thalach[(df_heart.target==1)], c='red')
+plt.scatter(x=df_heart.age[df_heart.target==0],
+ y=df_heart.thalach[(df_heart.target==0)], marker='^')
+plt.legend(['有疾病','⽆疾病'])
+plt.xlabel('年龄')
+plt.ylabel('⼼率')
+plt.show()
+
+print(df_heart.target.value_counts())#输出分类值以及各个类别数⽬
+
+# 显示关联性
+import matplotlib.pyplot as plt
+import seaborn as sns
+plt.figure(figsize=(10, 16))
+sns.heatmap(df_heart.corr(), cmap='YlGnBu', annot=True)
+plt.show()
+
+# 将⽂本类型转为哑变量
+a = pd.get_dummies(df_heart['cp'] , prefix='cp')
+b = pd.get_dummies(df_heart['thal'] , prefix='thal')
+c = pd.get_dummies(df_heart['slope'] , prefix='slope')
+# 哑变量添加进datafram
+frams = [df_heart,a,b,c]
+df_heart = pd.concat(frams, axis=1)
+df_heart = df_heart.drop(columns=['cp','thal','slope'])
+print(df_heart.head())
+
+x= df_heart.drop(['target'],axis=1)
+y = df_heart.target.values
+y = y.reshape(-1,1)
+print(x.shape)
+print(y.shape)
+# 数据量样本少,可以考虑使⽤k折验证
+#使用逻辑回归
+from sklearn.model_selection import train_test_split
+x_train,x_test,y_train,y_test = train_test_split(x,y,test_size=0.2)
+from sklearn.preprocessing import MinMaxScaler
+scaler = MinMaxScaler()
+x_train = scaler.fit_transform(x_train)
+x_test = scaler.transform(x_test)
+
+from sklearn.linear_model import LogisticRegression
+lr = LogisticRegression(penalty='l2', C=0.1) # C值越⼩,正则化的⼒度越⼤
+lr.fit(x_train,y_train)
+score = lr.score(x_test,y_test)
+print('逻辑回归测试准确率:',score*100)
+from sklearn.metrics import confusion_matrix, accuracy_score, recall_score, f1_score
+
+cm = confusion_matrix(y_test,lr.predict(x_test))
+plt.title('混淆矩阵')
+sns.heatmap(cm,annot=True ,cmap='Blues',fmt='d',cbar=False)
+plt.show()
+
+#使用神经网络
+import tensorflow.keras
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Dense
+ann = Sequential()
+ann.add(Dense(units=12, input_dim=21, activation='relu'))
+ann.add(Dense(units=24,activation='relu'))
+ann.add(Dense(units=1,activation='sigmoid'))
+ann.summary()
+
+
+ann.compile(loss='binary_crossentropy',
+ optimizer='adam',
+ metrics=['accuracy'])
+
+# 留出验证集
+x_val = x_train[:3]
+partial_x_train = x_train[3:]
+y_val = y_train[:3]
+partial_y__train = y_train[3:]
+# 训练模型
+history = ann.fit(partial_x_train,
+ partial_y__train,
+ epochs = 20,
+ batch_size = 512,
+ validation_data =(x_val, y_val))
+
+def show_history(history): # 显示训练过程的学习曲线
+ loss = history.history['loss']
+ val_loss = history.history['val_loss']
+ epochs = range(1, len(loss) + 1)
+ plt.figure(figsize=(12,4))
+ plt.subplot(1, 2, 1)
+ plt.plot(epochs, loss, 'bo', label='训练损失')
+ plt.plot(epochs, val_loss, 'b', label='验证损失')
+ plt.title('Training and validation loss')
+ plt.xlabel('Epochs')
+ plt.ylabel('Loss')
+ plt.legend()
+ acc = history.history['accuracy']
+ val_acc = history.history['val_accuracy']
+ plt.subplot(1, 2, 2)
+ plt.plot(epochs, acc, 'bo', label='训练正确精度')
+ plt.plot(epochs, val_acc, 'b', label='验证正确精度')
+ plt.title('Training and validation accuracy')
+ plt.xlabel('Epochs')
+ plt.ylabel('Accuracy')
+ plt.legend()
+ plt.show()
+
+
+show_history(history)  # 可以观察到验证集和训练集上⾯的损失和准确率
+
+
