@@ -1,0 +1,142 @@
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import accuracy_score
+from sklearn.model_selection import GridSearchCV
+from sklearn.metrics import f1_score
+from sklearn.metrics import classification_report
+from sklearn.metrics import confusion_matrix
+from sklearn.metrics import precision_recall_curve
+from sklearn.metrics import roc_curve
+from sklearn.metrics import roc_auc_score
+
+# 解决matplotlib中文问题
+from pylab import mpl
+
+mpl.rcParams['font.sans-serif'] = ['SimHei']  # 指定默认字体
+mpl.rcParams['axes.unicode_minus'] = False  # 解决保存图像是负号'-'显示为方块的问题
+
+# 导入数据
+df = pd.read_csv('C:\\Users\\planz\\Desktop\\大数据云计算\\机器学习\\heart.csv')
+df.info()
+df.describe()
+
+df.target.value_counts()
+plt.figure()
+sns.countplot(x='target', data=df, palette="muted")
+plt.xlabel("得病/未得病比例")
+plt.Text(0.5, 0, '得病/未得病比例')
+
+df.sex.value_counts()
+plt.figure()
+sns.countplot(x='sex', data=df, palette="Set3")
+plt.xlabel("Sex (0 = 女, 1= 男)")
+plt.Text(0.5, 0, 'Sex (0 = 女, 1= 男)')
+
+# 数据处理，对特征中非连续型数值进行处理
+first = pd.get_dummies(df['cp'], prefix="cp")
+second = pd.get_dummies(df['slope'], prefix="slope")
+thrid = pd.get_dummies(df['thal'], prefix="thal")
+df = pd.concat([df, first, second, thrid], axis=1)
+df = df.drop(columns=['cp', 'slope', 'thal'])
+print(df.head(3))
+
+# 将特征与目标分开
+X = df.drop(['target'], axis=1)
+y = df.target.values
+
+# 分割数据集
+X_train, X_test, y_train, y_test = train_test_split(X, y, random_state=6)  # 随机种子6
+
+# 标准化处理
+standardScaler = StandardScaler()
+standardScaler.fit(X_train)
+X_train = standardScaler.transform(X_train)
+X_test = standardScaler.transform(X_test)
+
+# 逻辑回归模型
+log_reg = LogisticRegression(solver='liblinear')
+log_reg.fit(X_train, y_train)
+print(log_reg.score(X_test, y_test))
+
+y_predict = log_reg.predict(X_test)
+# 调用accuracy_score计算分类准确度
+print(accuracy_score(y_test, y_predict))
+
+# 使用网格搜索找出更好的模型参数
+param_grid = [
+    {
+        'C': [0.01, 0.1, 1, 10, 100],
+        'penalty': ['l2', 'l1'],
+        'class_weight': ['balanced', None]
+    }
+]
+
+grid_search = GridSearchCV(log_reg, param_grid, cv=10, n_jobs=-1)
+grid_search.fit(X_train, y_train)
+print(grid_search.best_estimator_)
+print(grid_search.best_score_)
+print(grid_search.best_params_)
+log_reg = grid_search.best_estimator_
+log_reg.score(X_test, y_test)
+
+# 查看F1指标
+print(f1_score(y_test, y_predict))
+print(classification_report(y_test, y_predict))
+
+# 绘制混淆矩阵
+cnf_matrix = confusion_matrix(y_test, y_predict)
+
+
+def plot_cnf_matirx(cnf_matrix, description):
+    class_names = [0, 1]
+    fig, ax = plt.subplots()
+    tick_marks = np.arange(len(class_names))
+    plt.xticks(tick_marks, class_names)
+    plt.yticks(tick_marks, class_names)
+
+    # create a heat map
+    sns.heatmap(pd.DataFrame(cnf_matrix), annot=True, cmap='OrRd',
+                fmt='g')
+    ax.xaxis.set_label_position('top')
+    plt.tight_layout()
+    plt.title(description, y=1.1, fontsize=16)
+    plt.ylabel('实际值0/1', fontsize=12)
+    plt.xlabel('预测值0/1', fontsize=12)
+    plt.show()
+
+
+plot_cnf_matirx(cnf_matrix, 'Confusion matrix -- Logistic Regression')
+
+decision_scores = log_reg.decision_function(X_test)
+precisions, recalls, thresholds = precision_recall_curve(y_test, decision_scores)
+plt.plot(thresholds, precisions[:-1])
+plt.plot(thresholds, recalls[:-1])
+plt.grid()
+plt.show()
+
+# 绘制ROC曲线
+fprs, tprs, thresholds = roc_curve(y_test, decision_scores)
+
+
+def plot_roc_curve(fprs, tprs):
+    plt.figure(figsize=(8, 6), dpi=80)
+    plt.plot(fprs, tprs)
+    plt.plot([0, 1], linestyle='--')
+    plt.xticks(fontsize=13)
+    plt.yticks(fontsize=13)
+    plt.ylabel('TP rate', fontsize=15)
+    plt.xlabel('FP rate', fontsize=15)
+    plt.title('ROC曲线', fontsize=17)
+    plt.show()
+
+
+plot_roc_curve(fprs, tprs)
+
+# 求面积,相当于求得分
+# auc:area under curve
+print(roc_auc_score(y_test, decision_scores))
